@@ -42,7 +42,8 @@ jobs:
         env:
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name DEVOPS-EKS --role-arn arn:aws:iam::483515891285:role/LabRole          cd "proyecto semestral/front_despacho"
+          aws eks update-kubeconfig --region us-east-1 --name DEVOPS-EKS --role-arn arn:aws:iam::483515891285:role/LabRole
+          cd "proyecto semestral/front_despacho"
           
           # Corrección: Inyección segura restringida solo a la variable IMAGE_TAG
           if [ -f k8s/innovatech-deploy.yaml ]; then
