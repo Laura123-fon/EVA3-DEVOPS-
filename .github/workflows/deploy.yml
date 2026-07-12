@@ -1,0 +1,168 @@
+name: CI/CD Completo (Monorepo)
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  # ==========================================
+  # 1. PIPELINE FRONTEND
+  # ==========================================
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build y Push Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: innovatech-frontend
+          IMAGE_TAG: latest
+        run: |
+          cd "proyecto semestral/front_despacho"
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Desplegar Frontend en EKS
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name DEVOPS-EKS
+          cd "proyecto semestral/front_despacho"
+          
+          # Reemplazo dinámico de la imagen si decidiste parametrizar el deployment del front
+          if [ -f k8s/innovatech-deploy.yaml ]; then
+            envsubst < k8s/innovatech-deploy.yaml > tmp.yaml && mv tmp.yaml k8s/innovatech-deploy.yaml
+          fi
+          
+          # Aplicamos saltando la validación estricta de OpenAPI
+          kubectl apply -f k8s/ --validate=false
+          kubectl rollout restart deployment/frontend-deployment
+
+  # ==========================================
+  # 2. PIPELINE DESPACHOS (BACKEND)
+  # ==========================================
+  deploy-despachos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr-despachos
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build y Push Despachos
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-despachos.outputs.registry }}
+          ECR_REPOSITORY: innovatech-backend-despachos
+          IMAGE_TAG: latest
+        run: |
+          cd "proyecto semestral/back-Despachos_SpringBoot"
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Desplegar Despachos en EKS
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-despachos.outputs.registry }}
+          DB_ENDPOINT: ${{ secrets.DB_ENDPOINT }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name DEVOPS-EKS
+          cd "proyecto semestral/back-Despachos_SpringBoot"
+          
+          # Inyectamos variables en el Secret y en el Deployment
+          envsubst < k8s/innovatech-secret.yaml > tmp-sec.yaml && mv tmp-sec.yaml k8s/innovatech-secret.yaml
+          envsubst < k8s/innovatech-deploy.yaml > tmp-dep.yaml && mv tmp-dep.yaml k8s/innovatech-deploy.yaml
+          
+          # Aplicamos saltando la validación estricta de OpenAPI
+          kubectl apply -f k8s/ --validate=false
+          kubectl rollout restart deployment/despachos-deployment
+
+  # ==========================================
+  # 3. PIPELINE VENTAS (BACKEND)
+  # ==========================================
+  deploy-ventas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr-ventas
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build y Push Ventas
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-ventas.outputs.registry }}
+          ECR_REPOSITORY: innovatech-backend-ventas
+          IMAGE_TAG: latest
+        run: |
+          cd "proyecto semestral/back-Ventas_SpringBoot"
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Desplegar Ventas en EKS
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr-ventas.outputs.registry }}
+          DB_ENDPOINT: ${{ secrets.DB_ENDPOINT }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name DEVOPS-EKS
+          cd "proyecto semestral/back-Ventas_SpringBoot"
+          
+          # Inyectamos variables en el Secret y en el Deployment
+          envsubst < k8s/innovatech-secret.yaml > tmp-sec.yaml && mv tmp-sec.yaml k8s/innovatech-secret.yaml
+          envsubst < k8s/innovatech-deploy.yaml > tmp-dep.yaml && mv tmp-dep.yaml k8s/innovatech-deploy.yaml
+          
+          # Aplicamos saltando la validación estricta de OpenAPI
+          kubectl apply -f k8s/ --validate=false
+          kubectl rollout restart deployment/ventas-deployment
