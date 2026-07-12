@@ -14,9 +14,38 @@ spec:
     spec:
       containers:
         - name: frontend-container
-          image: 483515891285.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:latest
+          # Corrección: Uso de variable de entorno para inyectar tag desde el CI/CD
+          image: 483515891285.dkr.ecr.us-east-1.amazonaws.com/innovatech-frontend:${IMAGE_TAG}
           ports:
-            - containerPort: 80
+            - containerPort: 8080 # Corrección: Puerto alto requerido para ejecución no-root
+            
+          # Corrección: Contexto de seguridad restrictivo
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            
+          # Corrección: Límites de recursos para habilitar métricas del HPA
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+              
+          # Corrección: Sondas de estado HTTP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -29,6 +58,6 @@ spec:
     app: frontend
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 80
+      port: 80       # El balanceador de AWS recibe tráfico en el puerto web estándar
+      targetPort: 8080 # El tráfico se redirige al puerto seguro del contenedor
   type: LoadBalancer

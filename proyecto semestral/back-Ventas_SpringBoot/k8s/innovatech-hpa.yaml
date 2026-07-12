@@ -6,7 +6,8 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: ventas-backend
+    # Corrección: Modificado para coincidir con el metadata.name del Deployment
+    name: ventas-deployment
   minReplicas: 2
   maxReplicas: 5
   metrics:

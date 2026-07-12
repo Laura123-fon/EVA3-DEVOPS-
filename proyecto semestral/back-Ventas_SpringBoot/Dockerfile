@@ -2,12 +2,11 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# El comodín "*/" extrae el pom.xml sin importar el nombre de la subcarpeta
-COPY */pom.xml ./
+# Corrección: Referencia directa. El comando 'docker build' debe ejecutarse dentro de la carpeta del microservicio.
+COPY pom.xml ./
 RUN mvn dependency:go-offline -B
 
-# Extrae la carpeta src sin importar el nombre de la subcarpeta
-COPY */src ./src
+COPY src ./src
 RUN mvn clean package -DskipTests
 
 # --- ETAPA 2: Ejecución ---
@@ -21,7 +20,7 @@ USER spring:spring
 # Copiamos el .jar generado al contenedor final
 COPY --from=build /app/target/*.jar app.jar
 
-# PUERTO DE DOCUMENTACIÓN
-EXPOSE 8092
+# Corrección: Estandarización al puerto 8080 para coincidir con la red de Kubernetes
+EXPOSE 8080
 
 CMD ["java", "-jar", "app.jar"]
