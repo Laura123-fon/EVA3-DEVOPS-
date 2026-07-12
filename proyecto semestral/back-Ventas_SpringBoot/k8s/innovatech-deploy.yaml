@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: ventas-deployment
 spec:
-  replicas: 1
+  replicas: 1 # El HPA sobrescribirá este valor dinámicamente
   selector:
     matchLabels:
       app: ventas
@@ -14,9 +14,39 @@ spec:
     spec:
       containers:
         - name: ventas-container
-          image: 747789040045.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:latest
+          # Corrección: Reemplazo del tag :latest por la variable de entorno para CI/CD
+          image: 483515891285.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-ventas:${IMAGE_TAG}
           ports:
             - containerPort: 8080
+          
+          # Corrección: Implementación de mínimo privilegio a nivel de contenedor
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            
+          # Corrección: Declaración de recursos indispensable para el funcionamiento del HPA
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+              
+          # Corrección: Sondas de estado para recuperación automática y enrutamiento seguro
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            
           env:
             - name: DB_ENDPOINT
               valueFrom:
